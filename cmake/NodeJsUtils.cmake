@@ -89,19 +89,28 @@ function (get_njs_libs nodejs_dir config_name fail_on_missing_libs)
         # Node.js link libraries
         set (njs_libs
             # v8 libs
-            ${njs_out}/libv8_base.a
+            ${njs_out}/libv8_base_without_compiler.a
+            ${njs_out}/libv8_compiler.a
+            ${njs_out}/libv8_init.a
+            ${njs_out}/libv8_initializers.a
             ${njs_out}/libv8_libbase.a
             ${njs_out}/libv8_libplatform.a
             ${njs_out}/libv8_nosnapshot.a
             ${njs_out}/libv8_libsampler.a
 
             # node libs
+            ${njs_out}/libbrotli.a
             ${njs_out}/libcares.a
-            ${njs_out}/libgtest.a
+            ${njs_out}/libhistogram.a
             ${njs_out}/libhttp_parser.a
-            ${njs_out}/libuv.a
+            ${njs_out}/libllhttp.a
+            ${njs_out}/libnghttp2.a
             ${njs_out}/libopenssl.a
+            ${njs_out}/libtorque_base.a
+            ${njs_out}/libuv.a
+            ${njs_out}/libuvwasi.a
             ${njs_out}/libzlib.a
+
         )
 
         # verify that all required Node.js libs actually exist

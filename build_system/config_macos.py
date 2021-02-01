@@ -34,9 +34,10 @@ def build_node_js(config):
             --without-intl          \
             --without-inspector     \
             --dest-cpu=$ARCH        \
-            --without-snapshot      \
+            --without-node-snapshot \
+            --without-node-code-cache \
             --enable-static""",
-        "make -j4",
+        "make -j8",
     ]
 
 macos_config.build_step(c.build_node_js, build_node_js)
