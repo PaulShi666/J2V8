@@ -117,6 +117,14 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
 
 /*
  * Class:     com_eclipsesource_v8_V8
+ * Method:    _createIsolateTest
+ * Signature: (Ljava/lang/String;)J
+ */
+JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolateTest
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     com_eclipsesource_v8_V8
  * Method:    _executeIntegerScript
  * Signature: (JLjava/lang/String;Ljava/lang/String;I)I
  */

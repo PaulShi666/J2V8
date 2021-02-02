@@ -35,7 +35,7 @@ import org.junit.Test;
 import com.eclipsesource.v8.utils.V8Map;
 import com.eclipsesource.v8.utils.V8Runnable;
 
-public class V8Test {
+public class V8Test extends V8{
 
     private V8 v8;
 
