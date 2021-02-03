@@ -506,7 +506,7 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
    runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
     //runtime->isolate->Enter();
 //    v8Isolate = runtime->isolate;
-    Locker locker(runtime->isolate);
+    //Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
     runtime->pendingException = nullptr;

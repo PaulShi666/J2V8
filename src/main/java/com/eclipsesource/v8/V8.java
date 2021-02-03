@@ -86,7 +86,7 @@ public class V8 extends V8Object {
 
 //        synchronized (new Object()){
             V8 v8 = new V8();
-            //v8.executeIntegerScript("2");
+           Integer a = v8.executeIntegerScript("2");
 //        try {
 //            Thread.sleep(5000);
 //        } catch (InterruptedException e) {
@@ -802,10 +802,10 @@ public class V8 extends V8Object {
     }
 
     void checkThread() {
-        locker.checkThread();
-        if (isReleased()) {
-            throw new Error("Runtime disposed error");
-        }
+//        locker.checkThread();
+//        if (isReleased()) {
+//            throw new Error("Runtime disposed error");
+//        }
     }
 
     static void checkScript(final String script) {
