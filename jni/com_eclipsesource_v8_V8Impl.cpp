@@ -491,7 +491,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
  std::shared_ptr<node::ArrayBufferAllocator> allocator =
       node::ArrayBufferAllocator::Create();
 
-    Isolate* isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
+    v8Isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
 
 //  std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
 //    v8::V8::InitializePlatform(platform.get());
@@ -503,13 +503,13 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
 //        v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 //    v8::Isolate* isolate = v8::Isolate::New(create_params);
     {
-      v8::Isolate::Scope isolate_scope(isolate);
+      v8::Isolate::Scope isolate_scope(v8Isolate);
 
       // Create a stack-allocated handle scope.
-      v8::HandleScope handle_scope(isolate);
+      v8::HandleScope handle_scope(v8Isolate);
 
       // Create a new context.
-      v8::Local<v8::Context> context = v8::Context::New(isolate);
+      v8::Local<v8::Context> context = v8::Context::New(v8Isolate);
 
       // Enter the context for compiling and running the hello world script.
       v8::Context::Scope context_scope(context);
@@ -517,7 +517,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
       {
         // Create a string containing the JavaScript source code.
         v8::Local<v8::String> source =
-            v8::String::NewFromUtf8(isolate, "'Hello' + ', World1111!'",
+            v8::String::NewFromUtf8(v8Isolate, "'Hello' + ', World1111!'",
                                     v8::NewStringType::kNormal)
                 .ToLocalChecked();
 
@@ -529,12 +529,12 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
         v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
 
         // Convert the result to an UTF8 string and print it.
-        v8::String::Utf8Value utf8(isolate, result);
+        v8::String::Utf8Value utf8(v8Isolate, result);
         printf("%s\n", *utf8);
       }
     }
 //
-    v8Isolate = isolate;
+
 //  isolate->Dispose();
 //  printf("pendingException\n");
 // runtime->globalObject = new Persistent<Object>;
@@ -686,42 +686,44 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseLock
 //  runtime->locker = NULL;
 
  printf("Java_com_eclipsesource_v8_V8__1releaseLock \n");
-
- v8::Isolate::CreateParams create_params;
-   create_params.array_buffer_allocator =
-       v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-   v8::Isolate* isolate = v8::Isolate::New(create_params);
-   {
-     v8::Isolate::Scope isolate_scope(isolate);
-
-     // Create a stack-allocated handle scope.
-     v8::HandleScope handle_scope(isolate);
-
-     // Create a new context.
-     v8::Local<v8::Context> context = v8::Context::New(isolate);
-
-     // Enter the context for compiling and running the hello world script.
-     v8::Context::Scope context_scope(context);
-
-     {
-       // Create a string containing the JavaScript source code.
-       v8::Local<v8::String> source =
-           v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
-                                   v8::NewStringType::kNormal)
-               .ToLocalChecked();
-
-       // Compile the source code.
-       v8::Local<v8::Script> script =
-           v8::Script::Compile(context, source).ToLocalChecked();
-
-       // Run the script to get the result.
-       v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
-
-       // Convert the result to an UTF8 string and print it.
-       v8::String::Utf8Value utf8(isolate, result);
-       printf("%s\n", *utf8);
-     }
-  }
+ v8Isolate->Dispose();
+     printf("pendingException\n");
+//
+// v8::Isolate::CreateParams create_params;
+//   create_params.array_buffer_allocator =
+//       v8::ArrayBuffer::Allocator::NewDefaultAllocator();
+//   v8::Isolate* isolate = v8::Isolate::New(create_params);
+//   {
+//     v8::Isolate::Scope isolate_scope(isolate);
+//
+//     // Create a stack-allocated handle scope.
+//     v8::HandleScope handle_scope(isolate);
+//
+//     // Create a new context.
+//     v8::Local<v8::Context> context = v8::Context::New(isolate);
+//
+//     // Enter the context for compiling and running the hello world script.
+//     v8::Context::Scope context_scope(context);
+//
+//     {
+//       // Create a string containing the JavaScript source code.
+//       v8::Local<v8::String> source =
+//           v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
+//                                   v8::NewStringType::kNormal)
+//               .ToLocalChecked();
+//
+//       // Compile the source code.
+//       v8::Local<v8::Script> script =
+//           v8::Script::Compile(context, source).ToLocalChecked();
+//
+//       // Run the script to get the result.
+//       v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+//
+//       // Convert the result to an UTF8 string and print it.
+//       v8::String::Utf8Value utf8(isolate, result);
+//       printf("%s\n", *utf8);
+//     }
+//  }
 }
 
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1lowMemoryNotification
@@ -914,6 +916,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseRuntime
 
  printf("Java_com_eclipsesource_v8_V8__1releaseRuntime \n");
 
+v8Isolate->Dispose();
 //  if (v8RuntimePtr == 0) {
 //    return;
 //  }

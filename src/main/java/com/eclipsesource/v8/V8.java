@@ -278,8 +278,8 @@ public class V8 extends V8Object {
 //        super(null);
 //        released = false;
         long v8RuntimePtr = _createIsolate(globalAlias);
-        long v8RuntimePtr2 = _createIsolateTest(globalAlias);
-        //_releaseLock(v8RuntimePtr);
+        //long v8RuntimePtr2 = _createIsolateTest(globalAlias);
+       _releaseLock(0L);
         //locker = new V8Locker(this);
 //        checkThread();
 //        objectHandle = _getGlobalObject(v8RuntimePtr);
