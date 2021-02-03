@@ -46,7 +46,7 @@ public class V8 extends V8Object {
     protected Map<Long, V8Value>         v8WeakReferences        = new HashMap<Long, V8Value>();
 
     private Map<String, Object>          data                    = null;
-    private final V8Locker               locker;
+    private  V8Locker               locker;
     private long                         objectReferences        = 0;
     private long                         v8RuntimePtr            = 0;
     private List<Releasable>             resources               = null;
@@ -81,11 +81,25 @@ public class V8 extends V8Object {
         }
     }
 
-//    public static void main(String[] args) {
-//        load(null);
-//
-//        V8 v8 = new V8();
-//    }
+    public static void main(String[] args) {
+        load(null);
+
+//        synchronized (new Object()){
+            V8 v8 = new V8();
+            //v8.executeIntegerScript("2");
+//        try {
+//            Thread.sleep(5000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+        int b=0;
+            for (int i=0;i<10000;i++){
+               b++;
+            }
+//            v8._releaseRuntime(v8.v8RuntimePtr);
+            v8.close();
+//        }
+    }
 
     /**
      * Determines if the native libraries are loaded.
@@ -275,11 +289,11 @@ public class V8 extends V8Object {
 
     protected V8(final String globalAlias) {
         super(null);
-        released = false;
+//        released = false;
         v8RuntimePtr = _createIsolate(globalAlias);
-        locker = new V8Locker(this);
-        checkThread();
-        objectHandle = _getGlobalObject(v8RuntimePtr);
+        //locker = new V8Locker(this);
+        //checkThread();
+        //objectHandle = _getGlobalObject(v8RuntimePtr);
     }
 
     /**
@@ -387,7 +401,7 @@ public class V8 extends V8Object {
             synchronized (lock) {
                 runtimeCounter--;
             }
-            _releaseRuntime(0L);
+            _releaseRuntime(v8RuntimePtr);
             v8RuntimePtr = 0L;
             released = true;
             if (reportMemoryLeaks && (getObjectReferenceCount() > 0)) {

@@ -69,8 +69,8 @@ public:
 
 };
 
-v8::Platform* v8Platform;
-v8::Isolate* v8Isolate;
+node::MultiIsolatePlatform* v8Platform;
+//v8::Isolate* v8Isolate;
 
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
@@ -492,8 +492,10 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
 
 std::unique_ptr<node::MultiIsolatePlatform> platform =
      node::MultiIsolatePlatform::Create(4);
- V8::InitializePlatform(platform.get());
+     node::MultiIsolatePlatform* pointer =  platform.get();
+ V8::InitializePlatform(pointer);
  V8::Initialize();
+ v8Platform = pointer;
 
    uv_loop_t loop;
      int ret = uv_loop_init(&loop);
@@ -503,7 +505,7 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
 
    runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
     //runtime->isolate->Enter();
-    v8Isolate = runtime->isolate;
+//    v8Isolate = runtime->isolate;
     Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
@@ -765,24 +767,17 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1terminateExecution
 
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseRuntime
 (JNIEnv *env, jobject, jlong v8RuntimePtr) {
-//  v8Isolate->Enter();
-//  v8Isolate->Exit();
-//  v8Isolate->Dispose();
-//    printf("v8Isolate Dispose \n");
-  if (v8RuntimePtr == 0) {
+printf("Java_com_eclipsesource_v8_V8__1releaseRuntime\n");
+ if (v8RuntimePtr == 0) {
     return;
   }
-
   Isolate* isolate = getIsolate(env, v8RuntimePtr);
   reinterpret_cast<V8Runtime*>(v8RuntimePtr)->context_.Reset();
-  printf("Reset \n");
   reinterpret_cast<V8Runtime*>(v8RuntimePtr)->isolate->Dispose();
-  //v8Isolate->Dispose();
-  printf("Dispose \n");
   env->DeleteGlobalRef(reinterpret_cast<V8Runtime*>(v8RuntimePtr)->v8);
-  printf("DeleteGlobalRef \n");
   V8Runtime* runtime = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
-  delete(reinterpret_cast<V8Runtime*>(v8RuntimePtr));
+  delete(runtime);
+return;
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1contains
@@ -868,6 +863,13 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1executeVoidScript
   if (!compileScript(isolate,context, jjstring, env, jscriptName, jlineNumber, script, &tryCatch))
     return;
   runScript(isolate,context, env, &script, &tryCatch, v8RuntimePtr);
+
+  printf("runScript \n");
+
+  isolate->Exit();
+  isolate->Dispose();
+
+
 }
 
 JNIEXPORT jdouble JNICALL Java_com_eclipsesource_v8_V8__1executeDoubleScript
@@ -935,6 +937,12 @@ JNIEXPORT jint JNICALL Java_com_eclipsesource_v8_V8__1executeIntegerScript
   ASSERT_IS_NUMBER(result);
   printf("ASSERT_IS_NUMBER \n");
   //return result->Int32Value();
+//  {
+//    isolate->Exit();
+//    isolate->Dispose();
+//  }
+
+  printf("ASSERT_IS_NUMBER22223 \n");
   return result->Int32Value(context).ToChecked();
 }
 
