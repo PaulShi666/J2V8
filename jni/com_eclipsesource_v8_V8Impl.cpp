@@ -502,7 +502,7 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
      node::ArrayBufferAllocator::Create();
 
    runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
-    runtime->isolate->Enter();
+    //runtime->isolate->Enter();
     v8Isolate = runtime->isolate;
     Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
@@ -516,6 +516,29 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
       runtime->context_.Reset(runtime->isolate, context);
       runtime->globalObject = new Persistent<Object>;
       runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
+
+      {
+          // Enter the context for compiling and running the hello world script.
+          v8::Context::Scope context_scope(context);
+          {
+            // Create a string containing the JavaScript source code.
+            v8::Local<v8::String> source =
+                v8::String::NewFromUtf8(runtime->isolate, "'Hello' + ', World!'",
+                                        v8::NewStringType::kNormal)
+                    .ToLocalChecked();
+
+            // Compile the source code.
+            v8::Local<v8::Script> script =
+                v8::Script::Compile(context, source).ToLocalChecked();
+
+            // Run the script to get the result.
+            v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+
+            // Convert the result to an UTF8 string and print it.
+            v8::String::Utf8Value utf8(runtime->isolate, result);
+            printf("%s\n", *utf8);
+          }
+        }
     }
     else {
       Local<String> utfAlias = createV8String(env, runtime->isolate, globalAlias);
@@ -742,9 +765,14 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1terminateExecution
 
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseRuntime
 (JNIEnv *env, jobject, jlong v8RuntimePtr) {
+//  v8Isolate->Enter();
+//  v8Isolate->Exit();
+//  v8Isolate->Dispose();
+//    printf("v8Isolate Dispose \n");
   if (v8RuntimePtr == 0) {
     return;
   }
+
   Isolate* isolate = getIsolate(env, v8RuntimePtr);
   reinterpret_cast<V8Runtime*>(v8RuntimePtr)->context_.Reset();
   printf("Reset \n");
