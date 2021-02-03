@@ -81,6 +81,12 @@ public class V8 extends V8Object {
         }
     }
 
+//    public static void main(String[] args) {
+//        load(null);
+//
+//        V8 v8 = new V8();
+//    }
+
     /**
      * Determines if the native libraries are loaded.
      *
@@ -381,7 +387,7 @@ public class V8 extends V8Object {
             synchronized (lock) {
                 runtimeCounter--;
             }
-            _releaseRuntime(v8RuntimePtr);
+            _releaseRuntime(0L);
             v8RuntimePtr = 0L;
             released = true;
             if (reportMemoryLeaks && (getObjectReferenceCount() > 0)) {
