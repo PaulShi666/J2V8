@@ -201,6 +201,12 @@ public:
   jobject v8;
   jthrowable pendingException;
   V8Inspector* inspector;
+#ifdef NODE_COMPATIBLE
+  node::Environment* nodeEnvironment;
+  node::IsolateData* isolateData;
+  uv_loop_t* uvLoop;
+  bool running;
+#endif
 };
 
 std::unique_ptr<v8::Platform> v8Platform = nullptr;
@@ -494,8 +500,60 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1getBuildID
 }
 
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
-  (JNIEnv * env, jclass, jlong, jstring) {
-    (env)->ThrowNew(unsupportedOperationExceptionCls, "startNodeJS Not Supported.");
+  (JNIEnv * jniEnv, jclass, jlong v8RuntimePtr, jstring fileName) {
+#ifdef NODE_COMPATIBLE
+  Isolate* isolate = SETUP(jniEnv, v8RuntimePtr, );
+  setvbuf(stderr, NULL, _IOLBF, 1024);
+  const char* utfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
+  const char *argv[] = {"j2v8", utfFileName, NULL};
+  int argc = sizeof(argv) / sizeof(char*) - 1;
+  V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
+  if (v8RuntimePtr == 1) {
+  #if defined(_MSC_VER)
+    // This is deadcode, but it ensures that libj2v8 'touches' all the
+    // node modules. If the node modules are not 'touched' then the
+    // linker will strip them out
+    // @node-builtins-force-link
+    _register_async_wrap();
+    _register_cares_wrap();
+    _register_fs_event_wrap();
+    _register_js_stream();
+    _register_buffer();
+    _register_config();
+    _register_contextify();
+    _register_crypto();
+    _register_fs();
+    _register_http_parser();
+    _register_icu();
+    _register_os();
+    _register_url();
+    _register_util();
+    _register_v8();
+    _register_zlib();
+    _register_pipe_wrap();
+    _register_process_wrap();
+    _register_signal_wrap();
+    _register_spawn_sync();
+    _register_stream_wrap();
+    _register_tcp_wrap();
+    _register_timer_wrap();
+    _register_tls_wrap();
+    _register_tty_wrap();
+    _register_udp_wrap();
+    _register_uv();
+  #endif
+  }
+  rt->uvLoop = uv_default_loop();
+  rt->isolateData = node::CreateIsolateData(isolate, rt->uvLoop);
+  node::Environment* env = node::CreateEnvironment(rt->isolateData, context, argc, argv, 0, 0);
+  node::LoadEnvironment(env);
+  rt->nodeEnvironment = env;
+
+  rt->running = true;
+#endif
+#ifndef NODE_COMPATIBLE
+  (jniEnv)->ThrowNew(unsupportedOperationExceptionCls, "StartNodeJS Not Supported.");
+#endif
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
@@ -512,8 +570,11 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isRunning
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isNodeCompatible
   (JNIEnv * env, jclass) {
-    (env)->ThrowNew(unsupportedOperationExceptionCls, "isNodeCompatible Not Supported.");
+ #ifdef NODE_COMPATIBLE
+   return true;
+ #else
    return false;
+ #endif
 }
 
 JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate

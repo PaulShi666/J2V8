@@ -342,6 +342,8 @@ public class V8Test {
     public void testSimpleDoubleScript() {
         double result = v8.executeDoubleScript("3.14159;");
 
+        v8.executeVoidScript("import a from b");
+
         assertEquals(3.14159, result, 0.00001);
     }
 
