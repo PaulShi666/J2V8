@@ -99,6 +99,7 @@ public class V8 extends V8Object {
             }
             System.out.println(b);
             //v8._releaseRuntime(v8.v8RuntimePtr);
+            System.out.println("111");
             //v8.close();
 //        }
     }

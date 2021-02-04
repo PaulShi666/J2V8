@@ -69,7 +69,7 @@ public:
 
 };
 
-node::MultiIsolatePlatform* v8Platform;
+std::unique_ptr<v8::Platform> v8Platform = nullptr;
 //v8::Isolate* v8Isolate;
 
 const char* ToCString(const String::Utf8Value& value) {
@@ -256,21 +256,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     if (env == NULL) {
         return onLoad_err;
     }
-//    v8::V8::InitializeICU();
-//    //v8Platform = v8::platform::CreateDefaultPlatform();
-//    v8Platform = v8::platform::NewDefaultPlatform().get();
-//    v8::V8::InitializePlatform(v8Platform);
-//    v8::V8::Initialize();
-
-//     std::unique_ptr<node::MultiIsolatePlatform> platform =
-//         node::MultiIsolatePlatform::Create(4);
-//     V8::InitializePlatform(platform.get());
-//     V8::Initialize();
-
-//  std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
-//  v8::V8::InitializePlatform(platform.get());
-//  v8::V8::Initialize();
-//  v8Platform = platform.get();
+    v8::V8::InitializeICU();
+    v8Platform = v8::platform::NewDefaultPlatform();
+    v8::V8::InitializePlatform(v8Platform.get());
+    v8::V8::Initialize();
 
     // on first creation, store the JVM and a handle to J2V8 classes
     jvm = vm;
@@ -434,10 +423,10 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
   V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   node::Environment* environment = rt->nodeEnvironment;
   SealHandleScope seal(isolate);
-  v8::platform::PumpMessageLoop(v8Platform, isolate);
+  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
   rt->running = uv_run(rt->uvLoop, UV_RUN_ONCE);
   if (rt->running == false) {
-    v8::platform::PumpMessageLoop(v8Platform, isolate);
+    v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
     node::EmitBeforeExit(environment);
     // Emit `beforeExit` if the loop became alive either after emitting
     // event, or after running some callbacks.
@@ -480,67 +469,65 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
  (JNIEnv *env, jobject v8, jstring globalAlias) {
   V8Runtime* runtime = new V8Runtime();
 
-//  std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
-//    v8::V8::InitializePlatform(platform.get());
-//    v8::V8::Initialize();
+//std::unique_ptr<node::MultiIsolatePlatform> platform =
+//     node::MultiIsolatePlatform::Create(4);
+//     node::MultiIsolatePlatform* pointer =  platform.get();
+// V8::InitializePlatform(pointer);
+// V8::Initialize();
+// v8Platform = pointer;
 //
-//    // Create a new Isolate and make it the current one.
-//    v8::Isolate::CreateParams create_params;
-//    create_params.array_buffer_allocator =
-//        v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-//    v8::Isolate* isolate = v8::Isolate::New(create_params);
-
-std::unique_ptr<node::MultiIsolatePlatform> platform =
-     node::MultiIsolatePlatform::Create(4);
-     node::MultiIsolatePlatform* pointer =  platform.get();
- V8::InitializePlatform(pointer);
- V8::Initialize();
- v8Platform = pointer;
-
-   uv_loop_t loop;
-     int ret = uv_loop_init(&loop);
-
-std::shared_ptr<node::ArrayBufferAllocator> allocator =
-     node::ArrayBufferAllocator::Create();
-
-   runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
-    //runtime->isolate->Enter();
-//    v8Isolate = runtime->isolate;
-    Locker locker(runtime->isolate);
+//   uv_loop_t loop;
+//     int ret = uv_loop_init(&loop);
+//
+//std::shared_ptr<node::ArrayBufferAllocator> allocator =
+//     node::ArrayBufferAllocator::Create();
+//
+//   runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
+//    //runtime->isolate->Enter();
+////    v8Isolate = runtime->isolate;
+//    //Locker locker(runtime->isolate);
+//    v8::Isolate::Scope isolate_scope(runtime->isolate);
+//    runtime->v8 = env->NewGlobalRef(v8);
+//    runtime->pendingException = nullptr;
+//    HandleScope handle_scope(runtime->isolate);
+//    Handle<ObjectTemplate> globalObject = ObjectTemplate::New(runtime->isolate);
+    v8::Isolate::CreateParams create_params;
+    create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
+    runtime->isolate = v8::Isolate::New(create_params);
+//    Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
     runtime->pendingException = nullptr;
     HandleScope handle_scope(runtime->isolate);
     Handle<ObjectTemplate> globalObject = ObjectTemplate::New(runtime->isolate);
-
     if (globalAlias == nullptr) {
       Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
       runtime->context_.Reset(runtime->isolate, context);
       runtime->globalObject = new Persistent<Object>;
       runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
 
-      {
-          // Enter the context for compiling and running the hello world script.
-          v8::Context::Scope context_scope(context);
-          {
-            // Create a string containing the JavaScript source code.
-            v8::Local<v8::String> source =
-                v8::String::NewFromUtf8(runtime->isolate, "'Hello' + ', World!'",
-                                        v8::NewStringType::kNormal)
-                    .ToLocalChecked();
-
-            // Compile the source code.
-            v8::Local<v8::Script> script =
-                v8::Script::Compile(context, source).ToLocalChecked();
-
-            // Run the script to get the result.
-            v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
-
-            // Convert the result to an UTF8 string and print it.
-            v8::String::Utf8Value utf8(runtime->isolate, result);
-            printf("%s\n", *utf8);
-          }
-        }
+//      {
+//          // Enter the context for compiling and running the hello world script.
+//          v8::Context::Scope context_scope(context);
+//          {
+//            // Create a string containing the JavaScript source code.
+//            v8::Local<v8::String> source =
+//                v8::String::NewFromUtf8(runtime->isolate, "'Hello' + ', World!'",
+//                                        v8::NewStringType::kNormal)
+//                    .ToLocalChecked();
+//
+//            // Compile the source code.
+//            v8::Local<v8::Script> script =
+//                v8::Script::Compile(context, source).ToLocalChecked();
+//
+//            // Run the script to get the result.
+//            v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+//
+//            // Convert the result to an UTF8 string and print it.
+//            v8::String::Utf8Value utf8(runtime->isolate, result);
+//            printf("%s\n", *utf8);
+//          }
+//        }
     }
     else {
       Local<String> utfAlias = createV8String(env, runtime->isolate, globalAlias);
@@ -550,6 +537,7 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
       runtime->globalObject = new Persistent<Object>;
       runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
     }
+
   return reinterpret_cast<jlong>(runtime);
 }
 
@@ -563,6 +551,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1acquireLock
     env->DeleteLocalRef(exceptionString);
     return;
   }
+  printf("new Locker isolate\n");
   runtime->locker = new Locker(runtime->isolate);
 }
 
@@ -768,16 +757,24 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1terminateExecution
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseRuntime
 (JNIEnv *env, jobject, jlong v8RuntimePtr) {
  printf("Java_com_eclipsesource_v8_V8__1releaseRuntime\n");
+   printf("%d\n",Locker::IsActive());
+   printf("%d\n",Locker::IsLocked(reinterpret_cast<V8Runtime*>(v8RuntimePtr)->isolate));
  if (v8RuntimePtr == 0) {
     return;
   }
   Isolate* isolate = getIsolate(env, v8RuntimePtr);
+  TryCatch tryCatch(isolate);
   reinterpret_cast<V8Runtime*>(v8RuntimePtr)->context_.Reset();
-  reinterpret_cast<V8Runtime*>(v8RuntimePtr)->isolate->Dispose();
+  //reinterpret_cast<V8Runtime*>(v8RuntimePtr)->isolate->Dispose();
+
+  //Isolate* p = reinterpret_cast<V8Runtime*>(v8RuntimePtr)->isolate;
+//  delete(p);
   env->DeleteGlobalRef(reinterpret_cast<V8Runtime*>(v8RuntimePtr)->v8);
   V8Runtime* runtime = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   delete(runtime);
   printf("delete runtime\n");
+  isolate->Dispose();
+  printf("isolate Dispose\n");
 return;
 }
 
@@ -944,6 +941,7 @@ JNIEXPORT jint JNICALL Java_com_eclipsesource_v8_V8__1executeIntegerScript
 //  }
 
   printf("ASSERT_IS_NUMBER22223 \n");
+
   return result->Int32Value(context).ToChecked();
 }
 
