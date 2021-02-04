@@ -20,6 +20,7 @@
 #include "com_eclipsesource_v8_V8Impl.h"
 #include <node_code_cache_stub.cc>
 #include <node_snapshot_stub.cc>
+#include <uv.h>
 
 #define TAG "J2V8_V8Impl"
 
@@ -113,7 +114,7 @@ private:
 
 class V8InspectorClientImpl final: public v8_inspector::V8InspectorClient {
 public:
-  V8InspectorClientImpl(Isolate* isolate, const std::unique_ptr<v8::Platform> &platform, InspectorDelegate* inspectorDelegate, std::string contextName) {
+  V8InspectorClientImpl(Isolate* isolate, const std::unique_ptr<node::MultiIsolatePlatform> &platform, InspectorDelegate* inspectorDelegate, std::string contextName) {
     isolate_ = isolate;
     context_ = isolate->GetCurrentContext();
     platform_ = platform.get();
@@ -209,7 +210,7 @@ public:
 #endif
 };
 
-std::unique_ptr<v8::Platform> v8Platform = nullptr;
+std::unique_ptr<node::MultiIsolatePlatform> v8Platform = nullptr;
 
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
@@ -410,7 +411,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void*) {
     }
 
     v8::V8::InitializeICU();
-    v8Platform = v8::platform::NewDefaultPlatform();
+    v8Platform = node::MultiIsolatePlatform::Create(4);
     v8::V8::InitializePlatform(v8Platform.get());
     v8::V8::Initialize();
 
@@ -502,11 +503,13 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1getBuildID
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
   (JNIEnv * jniEnv, jclass, jlong v8RuntimePtr, jstring fileName) {
 #ifdef NODE_COMPATIBLE
-  Isolate* isolate = SETUP(jniEnv, v8RuntimePtr, );
+  //Isolate* isolate = SETUP(jniEnv, v8RuntimePtr, );
   setvbuf(stderr, NULL, _IOLBF, 1024);
-  const char* utfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
-  const char *argv[] = {"j2v8", utfFileName, NULL};
-  int argc = sizeof(argv) / sizeof(char*) - 1;
+  const char* constUtfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
+  char* utfFileName= const_cast<char*>(constUtfFileName);
+  char* argvArr[] = {"j2v8", utfFileName};
+  char** argv = argvArr;
+  int argc = 2;
   V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   if (v8RuntimePtr == 1) {
   #if defined(_MSC_VER)
@@ -543,11 +546,63 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
     _register_uv();
   #endif
   }
-  rt->uvLoop = uv_default_loop();
-  rt->isolateData = node::CreateIsolateData(isolate, rt->uvLoop);
-  node::Environment* env = node::CreateEnvironment(rt->isolateData, context, argc, argv, 0, 0);
-  node::LoadEnvironment(env);
-  rt->nodeEnvironment = env;
+  printf("Java_com_eclipsesource_v8_V8__1startNodeJS \n");
+  argv = uv_setup_args(argc, argv);
+  printf("uv_setup_args \n");
+  std::vector<std::string> args(argv, argv + argc);
+  std::vector<std::string> exec_args;
+  std::vector<std::string> errors;
+  int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
+  printf("InitializeNodeWithArgs \n");
+  for (const std::string& error : errors)
+    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+  if (exit_code != 0) {
+    printf("exit_code \n");
+  }
+  uv_loop_t loop;
+  int ret = uv_loop_init(&loop);
+  if (ret != 0) {
+    fprintf(stderr, "%s: Failed to initialize loop: %s\n",
+              args[0].c_str(),
+              uv_err_name(ret));
+   }
+  std::shared_ptr<node::ArrayBufferAllocator> allocator =
+        node::ArrayBufferAllocator::Create();
+  printf("ArrayBufferAllocator \n");
+  Isolate* isolate = NewIsolate(allocator.get(), &loop, v8Platform.get());
+  printf("getIsolate \n");
+  {
+      Locker locker(isolate);
+      Isolate::Scope isolate_scope(isolate);
+      printf("isolate_scope \n");
+      std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
+          node::CreateIsolateData(isolate, &loop, v8Platform.get(), allocator.get()),
+          node::FreeIsolateData);
+      printf("isolate_data \n");
+      HandleScope handle_scope(isolate);
+      printf("handle_scope \n");
+      Local<Context> context = node::NewContext(isolate);
+      printf("NewContext \n");
+      if (context.IsEmpty()) {
+        fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
+      }
+
+      Context::Scope context_scope(context);
+      printf("context_scope \n");
+      std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> env(
+          node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
+          node::FreeEnvironment);
+      printf("CreateEnvironment \n");
+      MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
+          env.get(),
+          "const publicRequire ="
+          "  require('module').createRequire(process.cwd() + '/');"
+          "globalThis.require = publicRequire;"
+          "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
+          "require('vm').runInThisContext(process.argv[1]);");
+      printf("LoadEnvironment \n");
+    }
+  //rt->nodeEnvironment = env;
 
   rt->running = true;
 #endif
@@ -580,9 +635,11 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isNodeCompatible
 JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
  (JNIEnv *env, jobject v8, jstring globalAlias) {
     V8Runtime* runtime = new V8Runtime();
-    v8::Isolate::CreateParams create_params;
-    create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-    runtime->isolate = v8::Isolate::New(create_params);
+    uv_loop_t loop;
+    int ret = uv_loop_init(&loop);
+    runtime->uvLoop = &loop;
+    std::shared_ptr<node::ArrayBufferAllocator> allocator = node::ArrayBufferAllocator::Create();
+    runtime->isolate = node::NewIsolate(allocator.get(), &loop, v8Platform.get());
     Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
