@@ -211,7 +211,7 @@ public:
 };
 
 std::unique_ptr<node::MultiIsolatePlatform> v8Platform = nullptr;
-
+std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = nullptr;
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
@@ -507,9 +507,9 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
   setvbuf(stderr, NULL, _IOLBF, 1024);
   const char* constUtfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
   char* utfFileName= const_cast<char*>(constUtfFileName);
-  char* argvArr[] = {"j2v8", utfFileName};
+  char* argvArr[] = {"j2v8", utfFileName,NULL};
   char** argv = argvArr;
-  int argc = 2;
+  int argc = sizeof(argvArr) / sizeof(char*) - 1;
   V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   if (v8RuntimePtr == 1) {
   #if defined(_MSC_VER)
@@ -566,17 +566,16 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
               args[0].c_str(),
               uv_err_name(ret));
    }
-  std::shared_ptr<node::ArrayBufferAllocator> allocator =
-        node::ArrayBufferAllocator::Create();
   printf("ArrayBufferAllocator \n");
-  Isolate* isolate = NewIsolate(allocator.get(), &loop, v8Platform.get());
+  Isolate* isolate = NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
+  //Isolate* isolate = getIsolate(jniEnv, v8RuntimePtr);
   printf("getIsolate \n");
   {
       Locker locker(isolate);
       Isolate::Scope isolate_scope(isolate);
       printf("isolate_scope \n");
       std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
-          node::CreateIsolateData(isolate, &loop, v8Platform.get(), allocator.get()),
+          node::CreateIsolateData(isolate, &loop, v8Platform.get(), arrayBufferAllocator.get()),
           node::FreeIsolateData);
       printf("isolate_data \n");
       HandleScope handle_scope(isolate);
@@ -638,8 +637,8 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
     uv_loop_t loop;
     int ret = uv_loop_init(&loop);
     runtime->uvLoop = &loop;
-    std::shared_ptr<node::ArrayBufferAllocator> allocator = node::ArrayBufferAllocator::Create();
-    runtime->isolate = node::NewIsolate(allocator.get(), &loop, v8Platform.get());
+    arrayBufferAllocator = node::ArrayBufferAllocator::Create();
+    runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
     Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
