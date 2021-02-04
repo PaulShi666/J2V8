@@ -18,6 +18,8 @@
 #include <map>
 #include <cstdlib>
 #include "com_eclipsesource_v8_V8Impl.h"
+#include <node_code_cache_stub.cc>
+#include <node_snapshot_stub.cc>
 
 #define TAG "J2V8_V8Impl"
 
@@ -549,7 +551,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createInspector
 
   runtime->inspector = new V8Inspector();
   runtime->inspector->delegate = env->NewGlobalRef(inspectorDelegateObj);
-  
+
   InspectorDelegate* delegate = new InspectorDelegate(
     std::bind(&V8Inspector::onResponse, runtime->inspector, std::placeholders::_1),
     std::bind(&V8Inspector::waitFrontendMessage, runtime->inspector)
@@ -1465,7 +1467,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayNullItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1479,7 +1481,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayUndefinedItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1494,7 +1496,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayIntItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1509,7 +1511,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayDoubleItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1524,7 +1526,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayBooleanItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1539,7 +1541,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayStringItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1554,7 +1556,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1addArrayObjectItem
   Isolate* isolate = SETUP(env, v8RuntimePtr, );
   Handle<Object> array = Local<Object>::New(isolate, *reinterpret_cast<Persistent<Object>*>(arrayHandle));
   if ( array->IsTypedArray() ) {
-     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.").ToLocalChecked();
+     Local<String> string = String::NewFromUtf8(isolate, "Cannot push to a Typed Array.",v8::NewStringType::kNormal).ToLocalChecked();
      v8::String::Value strValue(isolate, string);
      throwV8RuntimeException(env, &strValue);
      return;
@@ -1682,7 +1684,7 @@ void voidCallback(const FunctionCallbackInfo<Value>& args) {
       isolate->ThrowException(v8String);
     }
     else {
-      isolate->ThrowException(String::NewFromUtf8(isolate, "Unhandled Java Exception").ToLocalChecked());
+      isolate->ThrowException(String::NewFromUtf8(isolate, "Unhandled Java Exception",v8::NewStringType::kNormal).ToLocalChecked());
     }
   }
   env->CallVoidMethod(parameters, v8ArrayReleaseMethodID);
@@ -1756,7 +1758,7 @@ void objectCallback(const FunctionCallbackInfo<Value>& args) {
       isolate->ThrowException(v8String);
     }
     else {
-      isolate->ThrowException(String::NewFromUtf8(isolate, "Unhandled Java Exception").ToLocalChecked());
+      isolate->ThrowException(String::NewFromUtf8(isolate, "Unhandled Java Exception",v8::NewStringType::kNormal).ToLocalChecked());
     }
   }
   else if (resultObject == nullptr) {

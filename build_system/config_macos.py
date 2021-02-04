@@ -36,7 +36,7 @@ def build_node_js(config):
             --dest-cpu=$ARCH        \
             --without-snapshot      \
             --enable-static""",
-        "make -j4",
+        "make -j8",
     ]
 
 macos_config.build_step(c.build_node_js, build_node_js)
