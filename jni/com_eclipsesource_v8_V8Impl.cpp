@@ -506,7 +506,7 @@ std::shared_ptr<node::ArrayBufferAllocator> allocator =
    runtime->isolate = node::NewIsolate(allocator.get(), &loop, platform.get());
     //runtime->isolate->Enter();
 //    v8Isolate = runtime->isolate;
-    //Locker locker(runtime->isolate);
+    Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
     runtime->v8 = env->NewGlobalRef(v8);
     runtime->pendingException = nullptr;
@@ -767,7 +767,7 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1terminateExecution
 
 JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1releaseRuntime
 (JNIEnv *env, jobject, jlong v8RuntimePtr) {
-printf("Java_com_eclipsesource_v8_V8__1releaseRuntime\n");
+ printf("Java_com_eclipsesource_v8_V8__1releaseRuntime\n");
  if (v8RuntimePtr == 0) {
     return;
   }
@@ -777,6 +777,7 @@ printf("Java_com_eclipsesource_v8_V8__1releaseRuntime\n");
   env->DeleteGlobalRef(reinterpret_cast<V8Runtime*>(v8RuntimePtr)->v8);
   V8Runtime* runtime = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   delete(runtime);
+  printf("delete runtime\n");
 return;
 }
 

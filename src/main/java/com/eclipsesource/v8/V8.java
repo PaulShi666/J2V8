@@ -86,18 +86,20 @@ public class V8 extends V8Object {
 
 //        synchronized (new Object()){
             V8 v8 = new V8();
-           Integer a = v8.executeIntegerScript("2");
+          Integer a = v8.executeIntegerScript("2");
 //        try {
 //            Thread.sleep(5000);
 //        } catch (InterruptedException e) {
 //            e.printStackTrace();
 //        }
+        System.out.println(a);
         int b=0;
             for (int i=0;i<10000;i++){
                b++;
             }
-//            v8._releaseRuntime(v8.v8RuntimePtr);
-            v8.close();
+            System.out.println(b);
+            //v8._releaseRuntime(v8.v8RuntimePtr);
+            //v8.close();
 //        }
     }
 
@@ -289,11 +291,11 @@ public class V8 extends V8Object {
 
     protected V8(final String globalAlias) {
         super(null);
-//        released = false;
+        released = false;
         v8RuntimePtr = _createIsolate(globalAlias);
-        //locker = new V8Locker(this);
-        //checkThread();
-        //objectHandle = _getGlobalObject(v8RuntimePtr);
+        locker = new V8Locker(this);
+        checkThread();
+        objectHandle = _getGlobalObject(v8RuntimePtr);
     }
 
     /**
