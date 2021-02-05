@@ -568,43 +568,34 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
 //   }
   printf("ArrayBufferAllocator \n");
   //Isolate* isolate = NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
-  Isolate* isolate = getIsolate(jniEnv, v8RuntimePtr);
+      Isolate* isolate = getIsolate(jniEnv, v8RuntimePtr);
+      V8Runtime* runtime = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
+      Isolate::Scope isolateScope(isolate);
+      HandleScope handle_scope(isolate);
+      Local<Context> context = Local<Context>::New(isolate,runtime->context_);
+      Context::Scope context_scope(context);
+      printf("context_scope \n");
+    {
+      char* source = "setTimeout(function (){console.log(3333)});";
+      Local<String> source_string =
+            String::NewFromUtf8(isolate, source, NewStringType::kNormal)
+                .ToLocalChecked();
+        printf("NewFromUtf8 \n");
+        Local<Context> context = isolate->GetCurrentContext();
+        printf("context \n");
+        Local<Script> script =
+            Script::Compile(context, source_string).ToLocalChecked();
+        printf("Compile \n");
+        script->Run(context);
+        printf("Run \n");
+           {
 
-  printf("getIsolate %d \n",isolate->IsDead());
-  {
-      Locker locker(isolate);
-//      Isolate::Scope isolate_scope(isolate);
-//      printf("isolate_scope \n");
-//      std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
-//          node::CreateIsolateData(isolate, rt->uvLoop, v8Platform.get(), arrayBufferAllocator.get()),
-//          node::FreeIsolateData);
-//      printf("isolate_data \n");
-//      HandleScope handle_scope(isolate);
-//      printf("handle_scope \n");
-//      Local<Context> context = node::NewContext(isolate);
-//      printf("NewContext \n");
-//      if (context.IsEmpty()) {
-//        fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
-//      }
-//
-//      Context::Scope context_scope(context);
-//      printf("context_scope \n");
-//      std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> env(
-//          node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
-//          node::FreeEnvironment);
-//      printf("CreateEnvironment \n");
-//      MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
-//          env.get(),
-//          "const publicRequire ="
-//          "  require('module').createRequire(process.cwd() + '/');"
-//          "globalThis.require = publicRequire;"
-//          "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
-//          "require('vm').runInThisContext(process.argv[1]);");
-//      printf("LoadEnvironment \n");
+                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
+                printf("uv_run \n");
+            }
     }
-  //rt->nodeEnvironment = env;
 
-  rt->running = true;
+  //rt->running = true;
 #endif
 #ifndef NODE_COMPATIBLE
   (jniEnv)->ThrowNew(unsupportedOperationExceptionCls, "StartNodeJS Not Supported.");
@@ -612,9 +603,71 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
-  (JNIEnv * env, jclass, jlong) {
-    (env)->ThrowNew(unsupportedOperationExceptionCls, "pumpMessageLoop Not Supported.");
- return false;
+  (JNIEnv * env, jclass, jlong v8RuntimePtr) {
+#ifdef NODE_COMPATIBLE
+  //Isolate* isolate = SETUP(env, v8RuntimePtr, false);
+  V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
+  node::Environment* environment = rt->nodeEnvironment;
+
+   {
+            Isolate::Scope isolateScope(rt->isolate);
+            HandleScope handle_scope(rt->isolate);
+            Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
+            Context::Scope context_scope(context);
+            char* source = "setTimeout(function (){console.log(3333)});";
+            Local<String> source_string =
+                  String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
+                      .ToLocalChecked();
+              printf("context \n");
+              Local<Script> script =
+                  Script::Compile(context, source_string).ToLocalChecked();
+              printf("Compile \n");
+              script->Run(context);
+              printf("Run \n");
+//             {
+//                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
+//                  printf("uv_run \n");
+//              }
+  }
+//  SealHandleScope seal(isolate);
+//  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
+//  rt->running = uv_run(rt->uvLoop, UV_RUN_ONCE);
+//  if (rt->running == false) {
+//    v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
+//    node::EmitBeforeExit(environment);
+//    // Emit `beforeExit` if the loop became alive either after emitting
+//    // event, or after running some callbacks.
+//    rt->running = uv_loop_alive(rt->uvLoop);
+//    if (uv_run(rt->uvLoop, UV_RUN_NOWAIT) != 0) {
+//      rt->running = true;
+//    }
+//  }
+//  return rt->running;
+//    {
+//      SealHandleScope seal(isolate);
+//      printf("SealHandleScope \n");
+//      bool more;
+//      do {
+//        uv_run(rt->uvLoop, UV_RUN_DEFAULT);
+//        printf("uv_run \n");
+//        v8Platform.get()->DrainTasks(isolate);
+//        printf("DrainTasks \n");
+//        more = uv_loop_alive(rt->uvLoop);
+//        printf("uv_loop_alive \n");
+//        if (more) continue;
+////        node::EmitBeforeExit(env.get());
+////         printf("EmitBeforeExit \n");
+//        more = uv_loop_alive(rt->uvLoop);
+//        printf("uv_loop_alive \n");
+//      } while (more == true);
+//    }
+
+    return false;
+#endif
+#ifndef NODE_COMPATIBLE
+  (env)->ThrowNew(unsupportedOperationExceptionCls, "pumpMessageLoop Not Supported.");
+  return false;
+#endif
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isRunning
@@ -638,7 +691,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
     char* argvArr[] = {"j2v8", "utfFileName",NULL};
       char** argv = argvArr;
       int argc = sizeof(argvArr) / sizeof(char*) - 1;
-    argv = uv_setup_args(argc, argv);
+      argv = uv_setup_args(argc, argv);
       printf("uv_setup_args \n");
       std::vector<std::string> args(argv, argv + argc);
       std::vector<std::string> exec_args;
@@ -680,15 +733,20 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
       MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
           env.get(),
           "const publicRequire ="
-          "  require('module').createRequire(process.cwd() + '/');"
+          "  require('module').createRequire('/Users/shichuntao/Documents/J2V8-paul/node/lib' + '/');"
           "globalThis.require = publicRequire;"
           "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
-          "console.log(embedVars)"
-//          "require('vm').runInThisContext(process.argv[1]);"
+          "process = require('process');"
+//          "console.log(process.cwd());"
+//          "console.log(globalThis);"
+//          "console.log(process);"
+//          "process.nextTick(() => {console.log('nextTick callback');});"
+          "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
           );
       printf("LoadEnvironment \n");
 
       {
+        runtime->nodeEnvironment = env.get();
         runtime->v8 = jniEnv->NewGlobalRef(v8);
         runtime->pendingException = nullptr;
         HandleScope handle_scope(runtime->isolate);
