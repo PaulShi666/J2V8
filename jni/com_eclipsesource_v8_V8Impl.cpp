@@ -211,7 +211,6 @@ public:
 };
 
 std::unique_ptr<node::MultiIsolatePlatform> v8Platform = nullptr;
-std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = nullptr;
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
@@ -547,18 +546,18 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
   #endif
   }
   printf("Java_com_eclipsesource_v8_V8__1startNodeJS \n");
-  argv = uv_setup_args(argc, argv);
-  printf("uv_setup_args \n");
+//  argv = uv_setup_args(argc, argv);
+//  printf("uv_setup_args \n");
   std::vector<std::string> args(argv, argv + argc);
   std::vector<std::string> exec_args;
   std::vector<std::string> errors;
-  int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
+  //int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
   printf("InitializeNodeWithArgs \n");
-  for (const std::string& error : errors)
-    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
-  if (exit_code != 0) {
-    printf("exit_code \n");
-  }
+//  for (const std::string& error : errors)
+//    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+//  if (exit_code != 0) {
+//    printf("exit_code \n");
+//  }
   uv_loop_t loop;
   int ret = uv_loop_init(&loop);
   if (ret != 0) {
@@ -566,10 +565,12 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
               args[0].c_str(),
               uv_err_name(ret));
    }
+  std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = node::ArrayBufferAllocator::Create();
   printf("ArrayBufferAllocator \n");
   Isolate* isolate = NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
   //Isolate* isolate = getIsolate(jniEnv, v8RuntimePtr);
-  printf("getIsolate \n");
+
+  printf("getIsolate %d \n",isolate->IsDead());
   {
       Locker locker(isolate);
       Isolate::Scope isolate_scope(isolate);
@@ -634,10 +635,25 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isNodeCompatible
 JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
  (JNIEnv *env, jobject v8, jstring globalAlias) {
     V8Runtime* runtime = new V8Runtime();
+    char* argvArr[] = {"j2v8", "utfFileName",NULL};
+      char** argv = argvArr;
+      int argc = sizeof(argvArr) / sizeof(char*) - 1;
+    argv = uv_setup_args(argc, argv);
+      printf("uv_setup_args \n");
+      std::vector<std::string> args(argv, argv + argc);
+      std::vector<std::string> exec_args;
+      std::vector<std::string> errors;
+      int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
+      printf("InitializeNodeWithArgs \n");
+      for (const std::string& error : errors)
+        fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+      if (exit_code != 0) {
+        printf("exit_code \n");
+      }
     uv_loop_t loop;
     int ret = uv_loop_init(&loop);
     runtime->uvLoop = &loop;
-    arrayBufferAllocator = node::ArrayBufferAllocator::Create();
+    std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = node::ArrayBufferAllocator::Create();
     runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
     Locker locker(runtime->isolate);
     v8::Isolate::Scope isolate_scope(runtime->isolate);
