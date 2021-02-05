@@ -214,6 +214,7 @@ std::unique_ptr<node::MultiIsolatePlatform> v8Platform = nullptr;
 std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = nullptr;
 std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> globalIsolateData(nullptr,nullptr);
 std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> globalEnv(nullptr,nullptr);
+std::unique_ptr<uv_loop_t> globalUvLoop = nullptr;
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
@@ -597,7 +598,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
             HandleScope handle_scope(rt->isolate);
             Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
             Context::Scope context_scope(context);
-            char* source = "console.log(3333)";
+            char* source = "global.foo(123)";
             Local<String> source_string =
                   String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
                       .ToLocalChecked();
@@ -607,10 +608,10 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
               printf("Compile \n");
               script->Run(context);
               printf("Run \n");
-             {
-                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
-                  printf("uv_run \n");
-              }
+//             {
+//                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
+//                  printf("uv_run \n");
+//              }
   }
 //  SealHandleScope seal(isolate);
 //  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
@@ -687,10 +688,11 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
         printf("exit_code \n");
       }
     uv_loop_t loop;
-    int ret = uv_loop_init(&loop);
-    runtime->uvLoop = &loop;
+    globalUvLoop = std::unique_ptr<uv_loop_t>(&loop);
+    uv_loop_init(globalUvLoop.get());
+    runtime->uvLoop = globalUvLoop.get();
     arrayBufferAllocator = node::ArrayBufferAllocator::Create();
-    runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
+    runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), globalUvLoop.get(), v8Platform.get());
     {
       Locker locker(runtime->isolate);
       Isolate::Scope isolate_scope(runtime->isolate);
@@ -751,7 +753,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
         HandleScope handle_scope(runtime->isolate);
         Handle<ObjectTemplate> globalObject = ObjectTemplate::New(runtime->isolate);
         if (globalAlias == nullptr) {
-          Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
+//          Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
           runtime->context_.Reset(runtime->isolate, context);
           runtime->globalObject = new Persistent<Object>;
           runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
@@ -759,7 +761,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
         else {
           Local<String> utfAlias = createV8String(jniEnv, runtime->isolate, globalAlias);
           globalObject->SetAccessor(utfAlias, jsWindowObjectAccessor);
-          Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
+          //Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
           runtime->context_.Reset(runtime->isolate, context);
           runtime->globalObject = new Persistent<Object>;
           runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
