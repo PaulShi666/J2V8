@@ -21,6 +21,7 @@
 #include <node_code_cache_stub.cc>
 #include <node_snapshot_stub.cc>
 #include <uv.h>
+#include <pthread.h>
 
 #define TAG "J2V8_V8Impl"
 
@@ -217,6 +218,12 @@ std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> globalEnv(n
 std::unique_ptr<uv_loop_t> globalUvLoop = nullptr;
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
+}
+void *printThreadHello(void *);
+void *printThreadHello(void *) {
+    printf("hello thread \n");
+    // 切记要有返回值
+    return NULL;
 }
 
 JavaVM* jvm = nullptr;
@@ -590,6 +597,11 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
   (JNIEnv * env, jclass, jlong v8RuntimePtr) {
 #ifdef NODE_COMPATIBLE
   //Isolate* isolate = SETUP(env, v8RuntimePtr, false);
+  char* argvArr[] = {"j2v8", "utfFileName",NULL};
+        char** argv = argvArr;
+        int argc = sizeof(argvArr) / sizeof(char*) - 1;
+        argv = uv_setup_args(argc, argv);
+        printf("uv_setup_args \n");
   V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   node::Environment* environment = rt->nodeEnvironment;
 
@@ -598,7 +610,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
             HandleScope handle_scope(rt->isolate);
             Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
             Context::Scope context_scope(context);
-            char* source = "";
+            char* source = "console.log(99999)";
             Local<String> source_string =
                   String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
                       .ToLocalChecked();
@@ -608,10 +620,8 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
               printf("Compile \n");
               script->Run(context);
               printf("Run \n");
-//             {
-//                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
-//                  printf("uv_run \n");
-//              }
+//              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
+//              printf("uv_run \n");
   }
 //  SealHandleScope seal(isolate);
 //  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
@@ -729,23 +739,32 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
           "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
           );
       printf("LoadEnvironment \n");
-//    {
-//      char* source = "setTimeout(function (){console.log(3333)});";
-//      Local<String> source_string =
-//            String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
-//                .ToLocalChecked();
-//        printf("NewFromUtf8 \n");
-//        Local<Script> script =
-//            Script::Compile(context, source_string).ToLocalChecked();
-//        printf("Compile \n");
-//        script->Run(context);
-//        printf("Run \n");
-//           {
-//
-//                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
-//                printf("uv_run \n");
-//            }
-//    }
+
+      pthread_t handles; // 线程句柄
+      int result = pthread_create(&handles, NULL, printThreadHello, NULL);
+      if (result != 0) {
+          printf("create thread failed\n");
+      } else {
+          printf("create thread success\n");
+      }
+
+    {
+      char* source = "setTimeout(function (){console.log(3333)});";
+      Local<String> source_string =
+            String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
+                .ToLocalChecked();
+        printf("NewFromUtf8 \n");
+        Local<Script> script =
+            Script::Compile(context, source_string).ToLocalChecked();
+        printf("Compile \n");
+        script->Run(context);
+        printf("Run \n");
+           {
+
+                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
+                printf("uv_run \n");
+            }
+    }
       {
         runtime->nodeEnvironment = globalEnv.get();
         runtime->v8 = jniEnv->NewGlobalRef(v8);
