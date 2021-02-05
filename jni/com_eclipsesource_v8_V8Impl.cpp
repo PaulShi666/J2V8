@@ -598,7 +598,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
             HandleScope handle_scope(rt->isolate);
             Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
             Context::Scope context_scope(context);
-            char* source = "global.foo(123)";
+            char* source = "";
             Local<String> source_string =
                   String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
                       .ToLocalChecked();
