@@ -212,6 +212,8 @@ public:
 
 std::unique_ptr<node::MultiIsolatePlatform> v8Platform = nullptr;
 std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = nullptr;
+std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> globalIsolateData(nullptr,nullptr);
+std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> globalEnv(nullptr,nullptr);
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
@@ -575,25 +577,6 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
       Local<Context> context = Local<Context>::New(isolate,runtime->context_);
       Context::Scope context_scope(context);
       printf("context_scope \n");
-    {
-      char* source = "setTimeout(function (){console.log(3333)});";
-      Local<String> source_string =
-            String::NewFromUtf8(isolate, source, NewStringType::kNormal)
-                .ToLocalChecked();
-        printf("NewFromUtf8 \n");
-        Local<Context> context = isolate->GetCurrentContext();
-        printf("context \n");
-        Local<Script> script =
-            Script::Compile(context, source_string).ToLocalChecked();
-        printf("Compile \n");
-        script->Run(context);
-        printf("Run \n");
-           {
-
-                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
-                printf("uv_run \n");
-            }
-    }
 
   //rt->running = true;
 #endif
@@ -614,7 +597,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
             HandleScope handle_scope(rt->isolate);
             Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
             Context::Scope context_scope(context);
-            char* source = "setTimeout(function (){console.log(3333)});";
+            char* source = "console.log(3333)";
             Local<String> source_string =
                   String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
                       .ToLocalChecked();
@@ -624,10 +607,10 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
               printf("Compile \n");
               script->Run(context);
               printf("Run \n");
-//             {
-//                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
-//                  printf("uv_run \n");
-//              }
+             {
+                  uv_run(rt->uvLoop, UV_RUN_DEFAULT);
+                  printf("uv_run \n");
+              }
   }
 //  SealHandleScope seal(isolate);
 //  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
@@ -712,7 +695,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
       Locker locker(runtime->isolate);
       Isolate::Scope isolate_scope(runtime->isolate);
       printf("isolate_scope \n");
-      std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> isolate_data(
+      globalIsolateData = std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)>(
           node::CreateIsolateData(runtime->isolate, runtime->uvLoop, v8Platform.get(), arrayBufferAllocator.get()),
           node::FreeIsolateData);
       printf("isolate_data \n");
@@ -726,12 +709,12 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
 
       Context::Scope context_scope(context);
       printf("context_scope \n");
-      std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> env(
-          node::CreateEnvironment(isolate_data.get(), context, args, exec_args),
+      globalEnv = std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)>(
+          node::CreateEnvironment(globalIsolateData.get(), context, args, exec_args),
           node::FreeEnvironment);
       printf("CreateEnvironment \n");
       MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
-          env.get(),
+          globalEnv.get(),
           "const publicRequire ="
           "  require('module').createRequire('/Users/shichuntao/Documents/J2V8-paul/node/lib' + '/');"
           "globalThis.require = publicRequire;"
@@ -744,9 +727,25 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
           "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
           );
       printf("LoadEnvironment \n");
-
+//    {
+//      char* source = "setTimeout(function (){console.log(3333)});";
+//      Local<String> source_string =
+//            String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
+//                .ToLocalChecked();
+//        printf("NewFromUtf8 \n");
+//        Local<Script> script =
+//            Script::Compile(context, source_string).ToLocalChecked();
+//        printf("Compile \n");
+//        script->Run(context);
+//        printf("Run \n");
+//           {
+//
+//                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
+//                printf("uv_run \n");
+//            }
+//    }
       {
-        runtime->nodeEnvironment = env.get();
+        runtime->nodeEnvironment = globalEnv.get();
         runtime->v8 = jniEnv->NewGlobalRef(v8);
         runtime->pendingException = nullptr;
         HandleScope handle_scope(runtime->isolate);
@@ -765,6 +764,7 @@ JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
           runtime->globalObject = new Persistent<Object>;
           runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
         }
+         printf("globalObject \n");
       }
 
     }
