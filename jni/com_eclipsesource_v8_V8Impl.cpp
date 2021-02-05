@@ -216,11 +216,14 @@ std::shared_ptr<node::ArrayBufferAllocator> arrayBufferAllocator = nullptr;
 std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)> globalIsolateData(nullptr,nullptr);
 std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> globalEnv(nullptr,nullptr);
 std::unique_ptr<uv_loop_t> globalUvLoop = nullptr;
+
 const char* ToCString(const String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
-void *printThreadHello(void *);
-void *printThreadHello(void *) {
+inline void *printThreadHello(void *);
+inline void *printThreadHello(void *) {
+    uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
+    printf("uv_run \n");
     printf("hello thread \n");
     // 切记要有返回值
     return NULL;
@@ -597,32 +600,87 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
   (JNIEnv * env, jclass, jlong v8RuntimePtr) {
 #ifdef NODE_COMPATIBLE
   //Isolate* isolate = SETUP(env, v8RuntimePtr, false);
+//  char* argvArr[] = {"j2v8", "utfFileName",NULL};
+//        char** argv = argvArr;
+//        int argc = sizeof(argvArr) / sizeof(char*) - 1;
+//        argv = uv_setup_args(argc, argv);
+//        printf("uv_setup_args \n");
+  V8Runtime* runtime = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   char* argvArr[] = {"j2v8", "utfFileName",NULL};
         char** argv = argvArr;
         int argc = sizeof(argvArr) / sizeof(char*) - 1;
         argv = uv_setup_args(argc, argv);
         printf("uv_setup_args \n");
-  V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
-  node::Environment* environment = rt->nodeEnvironment;
+        std::vector<std::string> args(argv, argv + argc);
+        std::vector<std::string> exec_args;
+        std::vector<std::string> errors;
+        int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
+        printf("InitializeNodeWithArgs \n");
+        for (const std::string& error : errors)
+          fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+        if (exit_code != 0) {
+          printf("exit_code \n");
+        }
+    uv_loop_t loop;
+    globalUvLoop = std::unique_ptr<uv_loop_t>(&loop);
+    uv_loop_init(globalUvLoop.get());
+    runtime->uvLoop = globalUvLoop.get();
+//    arrayBufferAllocator = node::ArrayBufferAllocator::Create();
+    {
+      runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), globalUvLoop.get(), v8Platform.get());
+      Locker locker(runtime->isolate);
+      HandleScope handle_scope(runtime->isolate);
+      printf("handle_scope \n");
+      Isolate::Scope isolate_scope(runtime->isolate);
+      printf("isolate_scope \n");
+      globalIsolateData = std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)>(
+          node::CreateIsolateData(runtime->isolate, runtime->uvLoop, v8Platform.get(), arrayBufferAllocator.get()),
+          node::FreeIsolateData);
+      printf("isolate_data \n");
+      Local<Context> context = node::NewContext(runtime->isolate);
+      printf("NewContext \n");
+//      if (context.IsEmpty()) {
+//        fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
+//      }
+      Context::Scope context_scope(context);
+      printf("context_scope \n");
 
-   {
-            Isolate::Scope isolateScope(rt->isolate);
-            HandleScope handle_scope(rt->isolate);
-            Local<Context> context = Local<Context>::New(rt->isolate,rt->context_);
-            Context::Scope context_scope(context);
-            char* source = "console.log(99999)";
-            Local<String> source_string =
-                  String::NewFromUtf8(rt->isolate, source, NewStringType::kNormal)
-                      .ToLocalChecked();
-              printf("context \n");
-              Local<Script> script =
-                  Script::Compile(context, source_string).ToLocalChecked();
-              printf("Compile \n");
-              script->Run(context);
-              printf("Run \n");
-//              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
-//              printf("uv_run \n");
-  }
+
+      globalEnv = std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)>(
+          node::CreateEnvironment(globalIsolateData.get(), context, args, exec_args),
+          node::FreeEnvironment);
+      printf("CreateEnvironment \n");
+    MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
+        globalEnv.get(),
+        "const publicRequire ="
+        "  require('module').createRequire('/Users/shichuntao/Documents/J2V8-paul/node/lib' + '/');"
+        "globalThis.require = publicRequire;"
+        "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
+        "process = require('process');"
+//          "console.log(process.cwd());"
+//          "console.log(globalThis);"
+//          "console.log(process);"
+//          "process.nextTick(() => {console.log('nextTick callback');});"
+        "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
+        );
+    printf("LoadEnvironment \n");
+//     {
+//
+//                char* source = "console.log(99999)";
+//                Local<String> source_string =
+//                      String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
+//                          .ToLocalChecked();
+//                  printf("context \n");
+//                  Local<Script> script =
+//                      Script::Compile(context, source_string).ToLocalChecked();
+//                  printf("Compile \n");
+//                  script->Run(context);
+//                  printf("Run \n");
+//    //              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
+//    //              printf("uv_run \n");
+//      }
+    }
+
 //  SealHandleScope seal(isolate);
 //  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
 //  rt->running = uv_run(rt->uvLoop, UV_RUN_ONCE);
@@ -681,116 +739,34 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isNodeCompatible
 
 JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createIsolate
  (JNIEnv *jniEnv, jobject v8, jstring globalAlias) {
-    V8Runtime* runtime = new V8Runtime();
-    char* argvArr[] = {"j2v8", "utfFileName",NULL};
-      char** argv = argvArr;
-      int argc = sizeof(argvArr) / sizeof(char*) - 1;
-      argv = uv_setup_args(argc, argv);
-      printf("uv_setup_args \n");
-      std::vector<std::string> args(argv, argv + argc);
-      std::vector<std::string> exec_args;
-      std::vector<std::string> errors;
-      int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
-      printf("InitializeNodeWithArgs \n");
-      for (const std::string& error : errors)
-        fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
-      if (exit_code != 0) {
-        printf("exit_code \n");
-      }
-    uv_loop_t loop;
-    globalUvLoop = std::unique_ptr<uv_loop_t>(&loop);
-    uv_loop_init(globalUvLoop.get());
-    runtime->uvLoop = globalUvLoop.get();
-    arrayBufferAllocator = node::ArrayBufferAllocator::Create();
-    runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), globalUvLoop.get(), v8Platform.get());
-    {
-      Locker locker(runtime->isolate);
-      Isolate::Scope isolate_scope(runtime->isolate);
-      printf("isolate_scope \n");
-      globalIsolateData = std::unique_ptr<node::IsolateData, decltype(&node::FreeIsolateData)>(
-          node::CreateIsolateData(runtime->isolate, runtime->uvLoop, v8Platform.get(), arrayBufferAllocator.get()),
-          node::FreeIsolateData);
-      printf("isolate_data \n");
-      HandleScope handle_scope(runtime->isolate);
-      printf("handle_scope \n");
-      Local<Context> context = node::NewContext(runtime->isolate);
-      printf("NewContext \n");
-      if (context.IsEmpty()) {
-        fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
-      }
+   V8Runtime* runtime = new V8Runtime();
+       uv_loop_t loop;
+       int ret = uv_loop_init(&loop);
 
-      Context::Scope context_scope(context);
-      printf("context_scope \n");
-      globalEnv = std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)>(
-          node::CreateEnvironment(globalIsolateData.get(), context, args, exec_args),
-          node::FreeEnvironment);
-      printf("CreateEnvironment \n");
-      MaybeLocal<Value> loadenv_ret = node::LoadEnvironment(
-          globalEnv.get(),
-          "const publicRequire ="
-          "  require('module').createRequire('/Users/shichuntao/Documents/J2V8-paul/node/lib' + '/');"
-          "globalThis.require = publicRequire;"
-          "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
-          "process = require('process');"
-//          "console.log(process.cwd());"
-//          "console.log(globalThis);"
-//          "console.log(process);"
-//          "process.nextTick(() => {console.log('nextTick callback');});"
-          "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
-          );
-      printf("LoadEnvironment \n");
+       arrayBufferAllocator = node::ArrayBufferAllocator::Create();
 
-      pthread_t handles; // 线程句柄
-      int result = pthread_create(&handles, NULL, printThreadHello, NULL);
-      if (result != 0) {
-          printf("create thread failed\n");
-      } else {
-          printf("create thread success\n");
-      }
-
-    {
-      char* source = "setTimeout(function (){console.log(3333)});";
-      Local<String> source_string =
-            String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
-                .ToLocalChecked();
-        printf("NewFromUtf8 \n");
-        Local<Script> script =
-            Script::Compile(context, source_string).ToLocalChecked();
-        printf("Compile \n");
-        script->Run(context);
-        printf("Run \n");
-           {
-
-                uv_run(runtime->uvLoop, UV_RUN_DEFAULT);
-                printf("uv_run \n");
-            }
-    }
-      {
-        runtime->nodeEnvironment = globalEnv.get();
-        runtime->v8 = jniEnv->NewGlobalRef(v8);
-        runtime->pendingException = nullptr;
-        HandleScope handle_scope(runtime->isolate);
-        Handle<ObjectTemplate> globalObject = ObjectTemplate::New(runtime->isolate);
-        if (globalAlias == nullptr) {
-//          Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
-          runtime->context_.Reset(runtime->isolate, context);
-          runtime->globalObject = new Persistent<Object>;
-          runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
-        }
-        else {
-          Local<String> utfAlias = createV8String(jniEnv, runtime->isolate, globalAlias);
-          globalObject->SetAccessor(utfAlias, jsWindowObjectAccessor);
-          //Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
-          runtime->context_.Reset(runtime->isolate, context);
-          runtime->globalObject = new Persistent<Object>;
-          runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
-        }
-         printf("globalObject \n");
-      }
-
-    }
-
-    return reinterpret_cast<jlong>(runtime);
+       runtime->isolate = NewIsolate(arrayBufferAllocator.get(), &loop, v8Platform.get());
+       Locker locker(runtime->isolate);
+       v8::Isolate::Scope isolate_scope(runtime->isolate);
+       runtime->v8 = jniEnv->NewGlobalRef(v8);
+       runtime->pendingException = nullptr;
+       HandleScope handle_scope(runtime->isolate);
+       Handle<ObjectTemplate> globalObject = ObjectTemplate::New(runtime->isolate);
+       if (globalAlias == nullptr) {
+         Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
+         runtime->context_.Reset(runtime->isolate, context);
+         runtime->globalObject = new Persistent<Object>;
+         runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
+       }
+       else {
+         Local<String> utfAlias = createV8String(jniEnv, runtime->isolate, globalAlias);
+         globalObject->SetAccessor(utfAlias, jsWindowObjectAccessor);
+         Handle<Context> context = Context::New(runtime->isolate, nullptr, globalObject);
+         runtime->context_.Reset(runtime->isolate, context);
+         runtime->globalObject = new Persistent<Object>;
+         runtime->globalObject->Reset(runtime->isolate, context->Global()->GetPrototype()->ToObject(context).ToLocalChecked());
+       }
+       return reinterpret_cast<jlong>(runtime);
 }
 
 JNIEXPORT jlong JNICALL Java_com_eclipsesource_v8_V8__1createInspector
