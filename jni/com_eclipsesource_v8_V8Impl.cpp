@@ -627,7 +627,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
     runtime->uvLoop = globalUvLoop.get();
 //    arrayBufferAllocator = node::ArrayBufferAllocator::Create();
     {
-      runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), globalUvLoop.get(), v8Platform.get());
+      //runtime->isolate = node::NewIsolate(arrayBufferAllocator.get(), globalUvLoop.get(), v8Platform.get());
       Locker locker(runtime->isolate);
       HandleScope handle_scope(runtime->isolate);
       printf("handle_scope \n");
@@ -638,6 +638,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
           node::FreeIsolateData);
       printf("isolate_data \n");
       Local<Context> context = node::NewContext(runtime->isolate);
+      //Local<Context> context = node::NewContext(runtime->isolate,runtime->context_);
       printf("NewContext \n");
 //      if (context.IsEmpty()) {
 //        fprintf(stderr, "%s: Failed to initialize V8 Context\n", args[0].c_str());
@@ -664,7 +665,7 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
     printf("LoadEnvironment \n");
      {
             Locker locker(runtime->isolate);
-                char* source = "console.log(99999)";
+                char* source = "setTimeout(function (){console.log(3333)});";
                 Local<String> source_string =
                       String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
                           .ToLocalChecked();
@@ -674,8 +675,8 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
                   printf("Compile \n");
                   script->Run(context);
                   printf("Run \n");
-    //              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
-    //              printf("uv_run \n");
+                  uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
+                  printf("uv_run \n");
       }
     }
 
