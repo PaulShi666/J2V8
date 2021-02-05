@@ -644,8 +644,6 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
 //      }
       Context::Scope context_scope(context);
       printf("context_scope \n");
-
-
       globalEnv = std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)>(
           node::CreateEnvironment(globalIsolateData.get(), context, args, exec_args),
           node::FreeEnvironment);
@@ -664,21 +662,21 @@ JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
         "require('vm').runInThisContext('process.nextTick(function(){console.log(22222)})');"
         );
     printf("LoadEnvironment \n");
-//     {
-//
-//                char* source = "console.log(99999)";
-//                Local<String> source_string =
-//                      String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
-//                          .ToLocalChecked();
-//                  printf("context \n");
-//                  Local<Script> script =
-//                      Script::Compile(context, source_string).ToLocalChecked();
-//                  printf("Compile \n");
-//                  script->Run(context);
-//                  printf("Run \n");
-//    //              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
-//    //              printf("uv_run \n");
-//      }
+     {
+            Locker locker(runtime->isolate);
+                char* source = "console.log(99999)";
+                Local<String> source_string =
+                      String::NewFromUtf8(runtime->isolate, source, NewStringType::kNormal)
+                          .ToLocalChecked();
+                  printf("context \n");
+                  Local<Script> script =
+                      Script::Compile(context, source_string).ToLocalChecked();
+                  printf("Compile \n");
+                  script->Run(context);
+                  printf("Run \n");
+    //              uv_run(globalUvLoop.get(), UV_RUN_DEFAULT);
+    //              printf("uv_run \n");
+      }
     }
 
 //  SealHandleScope seal(isolate);
