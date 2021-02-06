@@ -504,9 +504,11 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
 #ifdef NODE_COMPATIBLE
   Isolate* isolate = SETUP(jniEnv, v8RuntimePtr, );
   setvbuf(stderr, NULL, _IOLBF, 1024);
-  const char* utfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
-  const char *argv[] = {"j2v8", utfFileName, NULL};
-  int argc = sizeof(argv) / sizeof(char*) - 1;
+  const char* constUtfFileName = jniEnv->GetStringUTFChars(fileName, NULL);
+  char* utfFileName= const_cast<char*>(constUtfFileName);
+  char* argvArr[] = {"j2v8", utfFileName,NULL};
+  char** argv = argvArr;
+  int argc = sizeof(argvArr) / sizeof(char*) - 1;
   V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
   if (v8RuntimePtr == 1) {
   #if defined(_MSC_VER)
@@ -543,6 +545,18 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
     _register_uv();
   #endif
   }
+  argv = uv_setup_args(argc, argv);
+  printf("uv_setup_args \n");
+  std::vector<std::string> args(argv, argv + argc);
+  std::vector<std::string> exec_args;
+  std::vector<std::string> errors;
+  int exit_code = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
+  printf("InitializeNodeWithArgs \n");
+  for (const std::string& error : errors)
+    fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
+  if (exit_code != 0) {
+    printf("exit_code \n");
+  }
   rt->uvLoop = uv_default_loop();
   rt->isolateData = node::CreateIsolateData(isolate, rt->uvLoop);
   node::Environment* env = node::CreateEnvironment(rt->isolateData, context, argc, argv, 0, 0);
@@ -557,9 +571,30 @@ JNIEXPORT void JNICALL Java_com_eclipsesource_v8_V8__1startNodeJS
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1pumpMessageLoop
-  (JNIEnv * env, jclass, jlong) {
-    (env)->ThrowNew(unsupportedOperationExceptionCls, "pumpMessageLoop Not Supported.");
- return false;
+  (JNIEnv * env, jclass, jlong v8RuntimePtr) {
+#ifdef NODE_COMPATIBLE
+  Isolate* isolate = SETUP(env, v8RuntimePtr, false);
+  V8Runtime* rt = reinterpret_cast<V8Runtime*>(v8RuntimePtr);
+  node::Environment* environment = rt->nodeEnvironment;
+  SealHandleScope seal(isolate);
+  v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
+  rt->running = uv_run(rt->uvLoop, UV_RUN_ONCE);
+  if (rt->running == false) {
+    v8::platform::PumpMessageLoop(v8Platform.get(), isolate);
+    node::EmitBeforeExit(environment);
+    // Emit `beforeExit` if the loop became alive either after emitting
+    // event, or after running some callbacks.
+    rt->running = uv_loop_alive(rt->uvLoop);
+    if (uv_run(rt->uvLoop, UV_RUN_NOWAIT) != 0) {
+      rt->running = true;
+    }
+  }
+  return rt->running;
+#endif
+#ifndef NODE_COMPATIBLE
+  (env)->ThrowNew(unsupportedOperationExceptionCls, "pumpMessageLoop Not Supported.");
+  return false;
+#endif
 }
 
 JNIEXPORT jboolean JNICALL Java_com_eclipsesource_v8_V8__1isRunning
